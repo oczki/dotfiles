@@ -1,0 +1,50 @@
+#!/bin/bash
+
+scriptName=$1
+lineNum=$2
+
+function paramCheck() {
+    [[ -z "$scriptName" ]] && echo "No script name provided." && exit 1
+    [[ -z "$lineNum" ]] && echo "No line number provided." && exit 1
+    [[ ! $lineNum =~ ^[0-9]+$ ]] && echo "Line number must be a number. Surprise, surprise." && exit 1
+}
+
+function dirCheck() {
+    [[ ! -d "$scriptName" ]] && echo "Script's directory doesn't exist." && exit 1
+    [[ ! -e "$scriptName/Includes.txt" ]] && echo "Script's directory doesn't contain Includes.txt." && exit 1
+}
+
+function getIncludedFiles() {
+    grep "^\w*.pas" "$scriptName/Includes.txt"
+}
+
+function includesCheck() {
+    includedFiles=$(getIncludedFiles)
+    lineCounts=()
+    while read -r file
+    do
+        [[ ! -e "$scriptName/$file" ]] && echo "The included file $file wasn't found in the script's directory." && exit 1
+        local lineCount=$(awk 'END{print NR}' "$scriptName/$file")
+        lineCounts+=($lineCount)
+    done < <(echo "$includedFiles")
+}
+
+function getFinalLineNum() {
+    local result=$lineNum
+    for ((i = 0; i < ${#lineCounts[@]}; ++i))
+    do
+        result=$((result-lineCounts[$i]))
+        if [[ $result -le 0 ]]
+        then
+            result=$((result+lineCounts[$i]-i))
+            local actualFile=$(echo "$includedFiles" | sed "$((i+1))q;d")
+            echo "File: $actualFile, line: $result"
+            break
+        fi
+    done
+}
+
+paramCheck
+dirCheck
+includesCheck
+getFinalLineNum
